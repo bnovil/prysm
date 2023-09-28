@@ -40,6 +40,7 @@ import (
 	"github.com/prysmaticlabs/prysm/v4/beacon-chain/operations/synccommittee"
 	"github.com/prysmaticlabs/prysm/v4/beacon-chain/operations/voluntaryexits"
 	"github.com/prysmaticlabs/prysm/v4/beacon-chain/p2p"
+	"github.com/prysmaticlabs/prysm/v4/beacon-chain/p2p/peers"
 	"github.com/prysmaticlabs/prysm/v4/beacon-chain/rpc"
 	"github.com/prysmaticlabs/prysm/v4/beacon-chain/rpc/apimiddleware"
 	"github.com/prysmaticlabs/prysm/v4/beacon-chain/slasher"
@@ -48,6 +49,7 @@ import (
 	"github.com/prysmaticlabs/prysm/v4/beacon-chain/state/stategen"
 	regularsync "github.com/prysmaticlabs/prysm/v4/beacon-chain/sync"
 	"github.com/prysmaticlabs/prysm/v4/beacon-chain/sync/backfill"
+	"github.com/prysmaticlabs/prysm/v4/beacon-chain/sync/backfill/coverage"
 	"github.com/prysmaticlabs/prysm/v4/beacon-chain/sync/checkpoint"
 	"github.com/prysmaticlabs/prysm/v4/beacon-chain/sync/genesis"
 	initialsync "github.com/prysmaticlabs/prysm/v4/beacon-chain/sync/initial-sync"
@@ -110,6 +112,7 @@ type BeaconNode struct {
 	CheckpointInitializer   checkpoint.Initializer
 	forkChoicer             forkchoice.ForkChoicer
 	clockWaiter             startup.ClockWaiter
+	BackfillOpts            []backfill.ServiceOption
 	initialSyncComplete     chan struct{}
 }
 
@@ -218,7 +221,8 @@ func New(cliCtx *cli.Context, opts ...Option) (*BeaconNode, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "backfill status initialization error")
 	}
-	bf, err := backfill.NewService(ctx, bfs, beacon.clockWaiter, beacon.fetchP2P())
+	pa := peers.NewAssigner(beacon.fetchP2P().Peers(), beacon.forkChoicer)
+	bf, err := backfill.NewService(ctx, bfs, beacon.clockWaiter, beacon.fetchP2P(), pa, beacon.BackfillOpts...)
 	if err != nil {
 		return nil, errors.Wrap(err, "error initializing backfill service")
 	}
@@ -519,7 +523,7 @@ func (b *BeaconNode) startSlasherDB(cliCtx *cli.Context) error {
 	return nil
 }
 
-func (b *BeaconNode) startStateGen(ctx context.Context, bfs *backfill.StatusUpdater, fc forkchoice.ForkChoicer) error {
+func (b *BeaconNode) startStateGen(ctx context.Context, bfs coverage.AvailableBlocker, fc forkchoice.ForkChoicer) error {
 	opts := []stategen.StateGenOption{stategen.WithAvailableBlocker(bfs)}
 	sg := stategen.New(b.db, fc, opts...)
 

@@ -11,6 +11,7 @@ import (
 	"github.com/prysmaticlabs/prysm/v4/beacon-chain/db/filters"
 	slashertypes "github.com/prysmaticlabs/prysm/v4/beacon-chain/slasher/types"
 	"github.com/prysmaticlabs/prysm/v4/beacon-chain/state"
+	"github.com/prysmaticlabs/prysm/v4/consensus-types/blocks"
 	"github.com/prysmaticlabs/prysm/v4/consensus-types/interfaces"
 	"github.com/prysmaticlabs/prysm/v4/consensus-types/primitives"
 	"github.com/prysmaticlabs/prysm/v4/monitoring/backup"
@@ -115,9 +116,10 @@ type HeadAccessDatabase interface {
 	SaveGenesisData(ctx context.Context, state state.BeaconState) error
 	EnsureEmbeddedGenesis(ctx context.Context) error
 
-	// initialization method needed for origin checkpoint sync
+	// Support for checkpoint sync and backfill.
 	SaveOrigin(ctx context.Context, serState, serBlock []byte) error
 	SaveBackfillStatus(context.Context, *dbval.BackfillStatus) error
+	BackfillFinalizedIndex(ctx context.Context, blocks []blocks.ROBlock, finalizedChildRoot [32]byte) error
 }
 
 // SlasherDatabase interface for persisting data related to detecting slashable offenses on Ethereum.

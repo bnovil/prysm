@@ -3,12 +3,11 @@ package backfill
 import (
 	"context"
 
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/pkg/errors"
 	"github.com/prysmaticlabs/prysm/v4/beacon-chain/core/helpers"
 	"github.com/prysmaticlabs/prysm/v4/beacon-chain/p2p"
-	"github.com/prysmaticlabs/prysm/v4/beacon-chain/p2p/peers"
 	"github.com/prysmaticlabs/prysm/v4/beacon-chain/startup"
-	"github.com/prysmaticlabs/prysm/v4/config/params"
 	"github.com/prysmaticlabs/prysm/v4/consensus-types/primitives"
 	"github.com/prysmaticlabs/prysm/v4/encoding/bytesutil"
 	"github.com/prysmaticlabs/prysm/v4/proto/dbval"
@@ -17,29 +16,32 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const defaultWorkerCount = 5
-
-// TODO use the correct beacon param for blocks by range size instead
-const defaultBatchSize = 64
-
 type Service struct {
 	ctx           context.Context
-	su            *StatusUpdater
+	su            *Store
 	ms            minimumSlotter
 	cw            startup.ClockWaiter
+	enabled       bool // service is disabled by default while feature is experimental
 	nWorkers      int
-	errChan       chan error
 	batchSeq      *batchSequencer
 	batchSize     uint64
 	pool          BatchWorkerPool
 	verifier      *verifier
 	p2p           p2p.P2P
+	pa            PeerAssigner
 	batchImporter batchImporter
 }
 
 var _ runtime.Service = (*Service)(nil)
 
 type ServiceOption func(*Service) error
+
+func WithEnableBackfill(enabled bool) ServiceOption {
+	return func(s *Service) error {
+		s.enabled = enabled
+		return nil
+	}
+}
 
 func WithWorkerCount(n int) ServiceOption {
 	return func(s *Service) error {
@@ -83,9 +85,9 @@ func (d defaultMinimumSlotter) setClock(c *startup.Clock) {
 
 var _ minimumSlotter = &defaultMinimumSlotter{}
 
-type batchImporter func(ctx context.Context, b batch, su *StatusUpdater) (*dbval.BackfillStatus, error)
+type batchImporter func(ctx context.Context, b batch, su *Store) (*dbval.BackfillStatus, error)
 
-func defaultBatchImporter(ctx context.Context, b batch, su *StatusUpdater) (*dbval.BackfillStatus, error) {
+func defaultBatchImporter(ctx context.Context, b batch, su *Store) (*dbval.BackfillStatus, error) {
 	status := su.status()
 	if err := b.ensureParent(bytesutil.ToBytes32(status.LowParentRoot)); err != nil {
 		return status, err
@@ -100,7 +102,14 @@ func defaultBatchImporter(ctx context.Context, b batch, su *StatusUpdater) (*dbv
 	return status, nil
 }
 
-func NewService(ctx context.Context, su *StatusUpdater, cw startup.ClockWaiter, p p2p.P2P, opts ...ServiceOption) (*Service, error) {
+// PeerAssigner describes a type that provides an Assign method, which can assign the best peer
+// to service an RPC request. The Assign method takes a map of peers that should be excluded,
+// allowing the caller to avoid making multiple concurrent requests to the same peer.
+type PeerAssigner interface {
+	Assign(busy map[peer.ID]bool, n int) ([]peer.ID, error)
+}
+
+func NewService(ctx context.Context, su *Store, cw startup.ClockWaiter, p p2p.P2P, pa PeerAssigner, opts ...ServiceOption) (*Service, error) {
 	s := &Service{
 		ctx:           ctx,
 		su:            su,
@@ -113,12 +122,6 @@ func NewService(ctx context.Context, su *StatusUpdater, cw startup.ClockWaiter, 
 		if err := o(s); err != nil {
 			return nil, err
 		}
-	}
-	if s.nWorkers == 0 {
-		s.nWorkers = defaultWorkerCount
-	}
-	if s.batchSize == 0 {
-		s.batchSize = defaultBatchSize
 	}
 	s.pool = newP2PBatchWorkerPool(p, s.nWorkers)
 
@@ -158,9 +161,8 @@ func (s *Service) importBatches(ctx context.Context) {
 	}()
 	for i := range importable {
 		ib := importable[i]
-		// TODO: can we have an entire batch of skipped slots?
 		if len(ib.results) == 0 {
-			log.Error("wtf")
+			log.WithFields(ib.logFields()).Error("batch with no results, skipping importer")
 		}
 		_, err := s.batchImporter(ctx, ib, s.su)
 		if err != nil {
@@ -199,6 +201,10 @@ func (s *Service) scheduleTodos() {
 }
 
 func (s *Service) Start() {
+	if !s.enabled {
+		log.Info("exiting backfill service; not enabled")
+		return
+	}
 	ctx, cancel := context.WithCancel(s.ctx)
 	defer func() {
 		cancel()
@@ -213,15 +219,16 @@ func (s *Service) Start() {
 	s.batchSeq = newBatchSequencer(s.nWorkers, s.ms.minimumSlot(), primitives.Slot(status.LowSlot), primitives.Slot(s.batchSize))
 	// Exit early if there aren't going to be any batches to backfill.
 	if primitives.Slot(status.LowSlot) < s.ms.minimumSlot() {
+		log.WithField("minimum_required_slot", s.ms.minimumSlot()).
+			WithField("backfill_lowest_slot", status.LowSlot).
+			Info("Exiting backfill service; minimum block retention slot > lowest backfilled block")
 		return
 	}
-	originE := slots.ToEpoch(primitives.Slot(status.OriginSlot))
-	assigner := peers.NewAssigner(ctx, s.p2p.Peers(), params.BeaconConfig().MaxPeersToSync, originE)
 	s.verifier, err = s.initVerifier(ctx)
 	if err != nil {
 		log.WithError(err).Fatal("Unable to initialize backfill verifier, quitting.")
 	}
-	s.pool.Spawn(ctx, s.nWorkers, clock, assigner, s.verifier)
+	s.pool.Spawn(ctx, s.nWorkers, clock, s.pa, s.verifier)
 
 	if err = s.initBatches(); err != nil {
 		log.WithError(err).Fatal("Non-recoverable error in backfill service, quitting.")

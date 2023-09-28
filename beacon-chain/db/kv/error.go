@@ -21,3 +21,8 @@ var ErrNotFoundBackfillBlockRoot = errors.Wrap(ErrNotFound, "BackfillBlockRoot")
 
 // ErrNotFoundFeeRecipient is a not found error specifically for the fee recipient getter
 var ErrNotFoundFeeRecipient = errors.Wrap(ErrNotFound, "fee recipient")
+
+var errEmptyBlockSlice = errors.New("[]blocks.ROBlock is empty")
+var errIncorrectBlockParent = errors.New("Unexpected missing or forked blocks in a []ROBlock")
+var errFinalizedChildNotFound = errors.New("Unable to find finalized root descending from backfill batch")
+var errNotConnectedToFinalized = errors.New("Unable to finalize backfill blocks, finalized parent_root does not match")

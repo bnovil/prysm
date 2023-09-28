@@ -24,7 +24,7 @@ func (m MockAssigner) Assign(busy map[peer.ID]bool, n int) ([]peer.ID, error) {
 	return m.assign, nil
 }
 
-var _ peerAssigner = &MockAssigner{}
+var _ PeerAssigner = &MockAssigner{}
 
 func TestPoolDetectAllEnded(t *testing.T) {
 	nw := 5
@@ -55,7 +55,7 @@ type mockPool struct {
 	todoChan     chan batch
 }
 
-func (m *mockPool) Spawn(_ context.Context, _ int, _ *startup.Clock, _ peerAssigner, _ *verifier) {
+func (m *mockPool) Spawn(_ context.Context, _ int, _ *startup.Clock, _ PeerAssigner, _ *verifier) {
 }
 
 func (m *mockPool) Todo(b batch) {

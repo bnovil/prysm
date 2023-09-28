@@ -5,16 +5,14 @@ import (
 	"github.com/prysmaticlabs/prysm/v4/consensus-types/primitives"
 )
 
-var errSequencerMisconfigured = errors.New("backfill sequencer initialization error")
 var errMaxBatches = errors.New("backfill batch requested in excess of max outstanding batches")
 var errEndSequence = errors.New("sequence has terminated, no more backfill batches will be produced")
+var errCannotDecreaseMinimum = errors.New("The minimum backfill slot can only be increased, not decreased")
 
 type batchSequencer struct {
 	batcher batcher
 	seq     []batch
 }
-
-var errCannotDecreaseMinimum = errors.New("The minimum backfill slot can only be increased, not decreased")
 
 // moveMinimum enables the backfill service to change the slot where the batcher will start replying with
 // batch state batchEndSequence (signaling that no new batches will be produced). This is done in response to
@@ -26,10 +24,6 @@ func (c *batchSequencer) moveMinimum(min primitives.Slot) error {
 	}
 	c.batcher.min = min
 	return nil
-}
-
-func (c *batchSequencer) minimum() primitives.Slot {
-	return c.batcher.min
 }
 
 func (c *batchSequencer) countWithState(s batchState) int {
@@ -87,7 +81,6 @@ func (c *batchSequencer) sequence() ([]batch, error) {
 			if len(s) == 0 {
 				s = append(s, c.seq[i])
 			}
-			break
 		default:
 			continue
 		}

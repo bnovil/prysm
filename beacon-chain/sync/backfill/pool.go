@@ -15,13 +15,9 @@ import (
 )
 
 type BatchWorkerPool interface {
-	Spawn(ctx context.Context, n int, clock *startup.Clock, a peerAssigner, v *verifier)
+	Spawn(ctx context.Context, n int, clock *startup.Clock, a PeerAssigner, v *verifier)
 	Todo(b batch)
 	Complete() (batch, error)
-}
-
-type peerAssigner interface {
-	Assign(busy map[peer.ID]bool, n int) ([]peer.ID, error)
 }
 
 type worker interface {
@@ -39,7 +35,6 @@ func DefaultNewWorker(p p2p.P2P) newWorker {
 type p2pBatchWorkerPool struct {
 	maxBatches  int
 	newWorker   newWorker
-	assigner    peerAssigner
 	toWorkers   chan batch
 	fromWorkers chan batch
 	toRouter    chan batch
@@ -65,7 +60,7 @@ func newP2PBatchWorkerPool(p p2p.P2P, maxBatches int) *p2pBatchWorkerPool {
 	}
 }
 
-func (p *p2pBatchWorkerPool) Spawn(ctx context.Context, n int, c *startup.Clock, a peerAssigner, v *verifier) {
+func (p *p2pBatchWorkerPool) Spawn(ctx context.Context, n int, c *startup.Clock, a PeerAssigner, v *verifier) {
 	p.ctx, p.cancel = context.WithCancel(ctx)
 	go p.batchRouter(a)
 	for i := 0; i < n; i++ {
@@ -101,7 +96,7 @@ func (p *p2pBatchWorkerPool) Complete() (batch, error) {
 	}
 }
 
-func (p *p2pBatchWorkerPool) batchRouter(pa peerAssigner) {
+func (p *p2pBatchWorkerPool) batchRouter(pa PeerAssigner) {
 	busy := make(map[peer.ID]bool)
 	todo := make([]batch, 0)
 	rt := time.NewTicker(time.Second)

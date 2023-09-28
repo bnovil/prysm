@@ -43,10 +43,19 @@ func (w *p2pWorker) handle(ctx context.Context, b batch) batch {
 		return b.withRetryableError(err)
 	}
 	vb, err := w.v.verify(results)
-	backfillBatchTimeVerifying.Observe(float64(time.Now().Sub(dlt).Milliseconds()))
+	backfillBatchTimeVerifying.Observe(float64(time.Since(dlt).Milliseconds()))
 	if err != nil {
 		return b.withRetryableError(err)
 	}
+	// This is a hack to get the rough size of the batch. This helps us approximate the amount of memory needed
+	// to hold batches and relative sizes between batches, but will be inaccurate when it comes to measuring actual
+	// bytes downloaded from peers, mainly because the p2p messages are snappy compressed.
+	bdl := 0
+	for i := range vb {
+		bdl += vb[i].SizeSSZ()
+	}
+	backfillBatchApproximateBytes.Add(float64(bdl))
+	log.WithField("dlbytes", bdl).Debug("backfill batch bytes downloaded")
 	b.results = vb
 	return b.withState(batchImportable)
 }

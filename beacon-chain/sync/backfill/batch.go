@@ -6,13 +6,14 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/pkg/errors"
-	"github.com/prysmaticlabs/prysm/v4/consensus-types/blocks"
 	"github.com/prysmaticlabs/prysm/v4/consensus-types/primitives"
 	eth "github.com/prysmaticlabs/prysm/v4/proto/prysm/v1alpha1"
 	log "github.com/sirupsen/logrus"
 )
 
-var ErrChainBroken = errors.New("batch is not the ancestor of backfilled batch")
+// ErrChainBroken is usedbatch with no results, skipping importer when a backfill batch can't be imported to the db because it is not known to be the ancestor
+// of the canonical chain.
+var ErrChainBroken = errors.New("batch is not the ancestor of a known finalized root")
 
 type batchState int
 
@@ -75,11 +76,10 @@ func (b batch) logFields() log.Fields {
 	}
 }
 
-func (b *batch) inc() {
-	b.seq += 1
-}
-
 func (b batch) replaces(r batch) bool {
+	if r.state == batchImportComplete {
+		return false
+	}
 	if b.begin != r.begin {
 		return false
 	}
@@ -93,20 +93,12 @@ func (b batch) id() batchId {
 	return batchId(fmt.Sprintf("%d:%d", b.begin, b.end))
 }
 
-func (b batch) size() primitives.Slot {
-	return b.end - b.begin
-}
-
 func (b batch) ensureParent(expected [32]byte) error {
 	tail := b.results[len(b.results)-1]
 	if tail.Root() != expected {
 		return errors.Wrapf(ErrChainBroken, "last parent_root=%#x, tail root=%#x", expected, tail.Root())
 	}
 	return nil
-}
-
-func (b batch) lowest() blocks.ROBlock {
-	return b.results[0]
 }
 
 func (b batch) request() *eth.BeaconBlocksByRangeRequest {
@@ -123,12 +115,13 @@ func (b batch) withState(s batchState) batch {
 		switch b.state {
 		case batchErrRetryable:
 			b.retries += 1
+			log.WithFields(b.logFields()).Info("sequencing batch for retry")
 		case batchInit, batchNil:
 			b.firstScheduled = b.scheduled
 		}
 	}
 	if s == batchImportComplete {
-		backfillBatchTimeRoundtrip.Observe(float64(time.Now().Sub(b.firstScheduled).Milliseconds()))
+		backfillBatchTimeRoundtrip.Observe(float64(time.Since(b.firstScheduled).Milliseconds()))
 		log.WithFields(b.logFields()).Debug("Backfill batch imported.")
 	}
 	b.state = s
@@ -138,7 +131,7 @@ func (b batch) withState(s batchState) batch {
 
 func (b batch) withPeer(p peer.ID) batch {
 	b.pid = p
-	backfillBatchTimeWaiting.Observe(float64(time.Now().Sub(b.scheduled).Milliseconds()))
+	backfillBatchTimeWaiting.Observe(float64(time.Since(b.scheduled).Milliseconds()))
 	return b
 }
 

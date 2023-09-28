@@ -95,34 +95,38 @@ func (d *mockBackfillDB) SaveBlock(ctx context.Context, signed interfaces.ReadOn
 	return nil
 }
 
+func (d *mockBackfillDB) BackfillFinalizedIndex(ctx context.Context, blocks []blocks.ROBlock, finalizedChildRoot [32]byte) error {
+	return nil
+}
+
 func TestSlotCovered(t *testing.T) {
 	cases := []struct {
 		name   string
 		slot   primitives.Slot
-		status *StatusUpdater
+		status *Store
 		result bool
 	}{
 		{
 			name:   "genesis true",
-			status: &StatusUpdater{bs: &dbval.BackfillStatus{LowSlot: 10}},
+			status: &Store{bs: &dbval.BackfillStatus{LowSlot: 10}},
 			slot:   0,
 			result: true,
 		},
 		{
 			name:   "above end true",
-			status: &StatusUpdater{bs: &dbval.BackfillStatus{LowSlot: 1}},
+			status: &Store{bs: &dbval.BackfillStatus{LowSlot: 1}},
 			slot:   2,
 			result: true,
 		},
 		{
 			name:   "equal end true",
-			status: &StatusUpdater{bs: &dbval.BackfillStatus{LowSlot: 1}},
+			status: &Store{bs: &dbval.BackfillStatus{LowSlot: 1}},
 			slot:   1,
 			result: true,
 		},
 		{
 			name:   "genesisSync always true",
-			status: &StatusUpdater{genesisSync: true},
+			status: &Store{genesisSync: true},
 			slot:   100,
 			result: true,
 		},
@@ -138,7 +142,7 @@ func TestSlotCovered(t *testing.T) {
 func TestStatusUpdater_FillBack(t *testing.T) {
 	ctx := context.Background()
 	mdb := &mockBackfillDB{}
-	s := &StatusUpdater{bs: &dbval.BackfillStatus{LowSlot: 100}, store: mdb}
+	s := &Store{bs: &dbval.BackfillStatus{LowSlot: 100}, store: mdb}
 	b, err := setupTestBlock(90)
 	require.NoError(t, err)
 	rob, err := blocks.NewROBlock(b)
@@ -183,7 +187,7 @@ func TestReload(t *testing.T) {
 		name     string
 		db       BackfillDB
 		err      error
-		expected *StatusUpdater
+		expected *Store
 	}{
 		/*{
 			name: "origin not found, implying genesis sync ",
@@ -346,7 +350,7 @@ func TestReload(t *testing.T) {
 				backfillStatus: func(context.Context) (*dbval.BackfillStatus, error) { return nil, db.ErrNotFound },
 			},
 			err:      derp,
-			expected: &StatusUpdater{genesisSync: false, bs: &dbval.BackfillStatus{LowSlot: uint64(originSlot)}},
+			expected: &Store{genesisSync: false, bs: &dbval.BackfillStatus{LowSlot: uint64(originSlot)}},
 		},
 	}
 

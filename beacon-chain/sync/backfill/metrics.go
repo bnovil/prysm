@@ -30,6 +30,12 @@ var (
 			Help: "Number of backfill batches downloaded and imported.",
 		},
 	)
+	backfillBatchApproximateBytes = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "backfill_batch_bytes_downloaded",
+			Help: "Count of bytes downloaded from peers",
+		},
+	)
 	backfillBatchTimeRoundtrip = promauto.NewHistogram(
 		prometheus.HistogramOpts{
 			Name:    "backfill_batch_time_roundtrip",

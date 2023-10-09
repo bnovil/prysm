@@ -116,6 +116,7 @@ func NewService(ctx context.Context, su *Store, cw startup.ClockWaiter, p p2p.P2
 		cw:            cw,
 		ms:            &defaultMinimumSlotter{cw: cw, ctx: ctx},
 		p2p:           p,
+		pa:            pa,
 		batchImporter: defaultBatchImporter,
 	}
 	for _, o := range opts {
@@ -259,6 +260,7 @@ func (s *Service) initBatches() error {
 }
 
 func (s *Service) downscore(b batch) {
+	s.p2p.Peers().Scorers().BadResponsesScorer().Increment(b.pid)
 }
 
 func (s *Service) Stop() error {

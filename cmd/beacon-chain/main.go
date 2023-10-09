@@ -134,6 +134,9 @@ var appFlags = []cli.Flag{
 	genesis.StatePath,
 	genesis.BeaconAPIURL,
 	flags.SlasherDirFlag,
+	backfill.EnableExperimentalBackfill,
+	backfill.BackfillBatchSize,
+	backfill.BackfillWorkerCount,
 }
 
 func init() {

@@ -209,9 +209,6 @@ func ParseWeakSubjectivityInputString(wsCheckpointString string) (*v1alpha1.Chec
 // https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/p2p-interface.md#configuration
 // MIN_VALIDATOR_WITHDRAWABILITY_DELAY + CHURN_LIMIT_QUOTIENT // 2 (= 33024, ~5 months)
 // detailed rationale: https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/p2p-interface.md#why-are-blocksbyrange-requests-only-required-to-be-served-for-the-latest-min_epochs_for_block_requests-epochs
-// TODO: ask around to understand why the FAQ section of the p2p spec shows
-// multiplying and dividing the churn limit quotient by the max safety decay value of 100,
-// but in the definition of the constant, the simpler equation below is used.
 func MinEpochsForBlockRequests() primitives.Epoch {
 	return params.BeaconConfig().MinValidatorWithdrawabilityDelay +
 		primitives.Epoch(params.BeaconConfig().ChurnLimitQuotient/2)

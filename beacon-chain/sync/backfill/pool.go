@@ -14,10 +14,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type BatchWorkerPool interface {
-	Spawn(ctx context.Context, n int, clock *startup.Clock, a PeerAssigner, v *verifier)
-	Todo(b batch)
-	Complete() (batch, error)
+type batchWorkerPool interface {
+	spawn(ctx context.Context, n int, clock *startup.Clock, a PeerAssigner, v *verifier)
+	todo(b batch)
+	complete() (batch, error)
 }
 
 type worker interface {
@@ -26,7 +26,7 @@ type worker interface {
 
 type newWorker func(id workerId, in, out chan batch, c *startup.Clock, v *verifier) worker
 
-func DefaultNewWorker(p p2p.P2P) newWorker {
+func defaultNewWorker(p p2p.P2P) newWorker {
 	return func(id workerId, in, out chan batch, c *startup.Clock, v *verifier) worker {
 		return newP2pWorker(id, p, in, out, c, v)
 	}
@@ -45,10 +45,10 @@ type p2pBatchWorkerPool struct {
 	cancel      func()
 }
 
-var _ BatchWorkerPool = &p2pBatchWorkerPool{}
+var _ batchWorkerPool = &p2pBatchWorkerPool{}
 
 func newP2PBatchWorkerPool(p p2p.P2P, maxBatches int) *p2pBatchWorkerPool {
-	nw := DefaultNewWorker(p)
+	nw := defaultNewWorker(p)
 	return &p2pBatchWorkerPool{
 		newWorker:   nw,
 		toRouter:    make(chan batch, maxBatches),
@@ -60,7 +60,7 @@ func newP2PBatchWorkerPool(p p2p.P2P, maxBatches int) *p2pBatchWorkerPool {
 	}
 }
 
-func (p *p2pBatchWorkerPool) Spawn(ctx context.Context, n int, c *startup.Clock, a PeerAssigner, v *verifier) {
+func (p *p2pBatchWorkerPool) spawn(ctx context.Context, n int, c *startup.Clock, a PeerAssigner, v *verifier) {
 	p.ctx, p.cancel = context.WithCancel(ctx)
 	go p.batchRouter(a)
 	for i := 0; i < n; i++ {
@@ -68,7 +68,7 @@ func (p *p2pBatchWorkerPool) Spawn(ctx context.Context, n int, c *startup.Clock,
 	}
 }
 
-func (p *p2pBatchWorkerPool) Todo(b batch) {
+func (p *p2pBatchWorkerPool) todo(b batch) {
 	// Intercept batchEndSequence batches so workers can remain unaware of this state.
 	// Workers don't know what to do with batchEndSequence batches. They are a signal to the pool that the batcher
 	// has stopped producing things for the workers to do and the pool is close to winding down. See Complete()
@@ -81,7 +81,7 @@ func (p *p2pBatchWorkerPool) Todo(b batch) {
 	p.toRouter <- b
 }
 
-func (p *p2pBatchWorkerPool) Complete() (batch, error) {
+func (p *p2pBatchWorkerPool) complete() (batch, error) {
 	if len(p.endSeq) == p.maxBatches {
 		return p.endSeq[0], errEndSequence
 	}

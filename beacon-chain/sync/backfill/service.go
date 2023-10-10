@@ -25,7 +25,7 @@ type Service struct {
 	nWorkers      int
 	batchSeq      *batchSequencer
 	batchSize     uint64
-	pool          BatchWorkerPool
+	pool          batchWorkerPool
 	verifier      *verifier
 	p2p           p2p.P2P
 	pa            PeerAssigner
@@ -76,7 +76,7 @@ func (d defaultMinimumSlotter) minimumSlot() primitives.Slot {
 			log.WithError(err).Fatal("failed to obtain system/genesis clock, unable to start backfill service")
 		}
 	}
-	return MinimumBackfillSlot(d.clock.CurrentSlot())
+	return minimumBackfillSlot(d.clock.CurrentSlot())
 }
 
 func (d defaultMinimumSlotter) setClock(c *startup.Clock) {
@@ -109,6 +109,8 @@ type PeerAssigner interface {
 	Assign(busy map[peer.ID]bool, n int) ([]peer.ID, error)
 }
 
+// NewService initializes the backfill Service. Like all implementations of the Service interface,
+// the service won't begin its runloop until Start() is called.
 func NewService(ctx context.Context, su *Store, cw startup.ClockWaiter, p p2p.P2P, pa PeerAssigner, opts ...ServiceOption) (*Service, error) {
 	s := &Service{
 		ctx:           ctx,
@@ -138,7 +140,7 @@ func (s *Service) initVerifier(ctx context.Context) (*verifier, error) {
 }
 
 func (s *Service) updateComplete() bool {
-	b, err := s.pool.Complete()
+	b, err := s.pool.complete()
 	if err != nil {
 		if errors.Is(err, errEndSequence) {
 			log.WithField("backfill_slot", b.begin).Info("Backfill is complete")
@@ -197,10 +199,11 @@ func (s *Service) scheduleTodos() {
 		}
 	}
 	for _, b := range batches {
-		s.pool.Todo(b)
+		s.pool.todo(b)
 	}
 }
 
+// Start begins the runloop of backfill.Service in the current goroutine.
 func (s *Service) Start() {
 	if !s.enabled {
 		log.Info("exiting backfill service; not enabled")
@@ -229,7 +232,7 @@ func (s *Service) Start() {
 	if err != nil {
 		log.WithError(err).Fatal("Unable to initialize backfill verifier, quitting.")
 	}
-	s.pool.Spawn(ctx, s.nWorkers, clock, s.pa, s.verifier)
+	s.pool.spawn(ctx, s.nWorkers, clock, s.pa, s.verifier)
 
 	if err = s.initBatches(); err != nil {
 		log.WithError(err).Fatal("Non-recoverable error in backfill service, quitting.")
@@ -254,7 +257,7 @@ func (s *Service) initBatches() error {
 		return err
 	}
 	for _, b := range batches {
-		s.pool.Todo(b)
+		s.pool.todo(b)
 	}
 	return nil
 }
@@ -271,9 +274,9 @@ func (s *Service) Status() error {
 	return nil
 }
 
-// MinimumBackfillSlot determines the lowest slot that backfill needs to download based on looking back
+// minimumBackfillSlot determines the lowest slot that backfill needs to download based on looking back
 // MIN_EPOCHS_FOR_BLOCK_REQUESTS from the current slot.
-func MinimumBackfillSlot(current primitives.Slot) primitives.Slot {
+func minimumBackfillSlot(current primitives.Slot) primitives.Slot {
 	oe := helpers.MinEpochsForBlockRequests()
 	if oe > slots.MaxSafeEpoch() {
 		oe = slots.MaxSafeEpoch()

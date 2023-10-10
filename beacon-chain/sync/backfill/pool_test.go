@@ -12,38 +12,40 @@ import (
 	"github.com/prysmaticlabs/prysm/v4/testing/util"
 )
 
-type MockAssigner struct {
+type mockAssigner struct {
 	err    error
 	assign []peer.ID
 }
 
-func (m MockAssigner) Assign(busy map[peer.ID]bool, n int) ([]peer.ID, error) {
+// Assign satisfies the PeerAssigner interface so that mockAssigner can be used in tests
+// in place of the concrete p2p implementation of PeerAssigner.
+func (m mockAssigner) Assign(busy map[peer.ID]bool, n int) ([]peer.ID, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
 	return m.assign, nil
 }
 
-var _ PeerAssigner = &MockAssigner{}
+var _ PeerAssigner = &mockAssigner{}
 
 func TestPoolDetectAllEnded(t *testing.T) {
 	nw := 5
 	p2p := p2ptest.NewTestP2P(t)
 	ctx := context.Background()
-	ma := &MockAssigner{}
+	ma := &mockAssigner{}
 	pool := newP2PBatchWorkerPool(p2p, nw)
 	st, err := util.NewBeaconState()
 	require.NoError(t, err)
 	v, err := newBackfillVerifier(st)
 	require.NoError(t, err)
-	pool.Spawn(ctx, nw, startup.NewClock(time.Now(), [32]byte{}), ma, v)
+	pool.spawn(ctx, nw, startup.NewClock(time.Now(), [32]byte{}), ma, v)
 	br := batcher{min: 10, size: 10}
 	endSeq := br.before(0)
 	require.Equal(t, batchEndSequence, endSeq.state)
 	for i := 0; i < nw; i++ {
-		pool.Todo(endSeq)
+		pool.todo(endSeq)
 	}
-	b, err := pool.Complete()
+	b, err := pool.complete()
 	require.ErrorIs(t, err, errEndSequence)
 	require.Equal(t, b.end, endSeq.end)
 }
@@ -55,14 +57,14 @@ type mockPool struct {
 	todoChan     chan batch
 }
 
-func (m *mockPool) Spawn(_ context.Context, _ int, _ *startup.Clock, _ PeerAssigner, _ *verifier) {
+func (m *mockPool) spawn(_ context.Context, _ int, _ *startup.Clock, _ PeerAssigner, _ *verifier) {
 }
 
-func (m *mockPool) Todo(b batch) {
+func (m *mockPool) todo(b batch) {
 	m.todoChan <- b
 }
 
-func (m *mockPool) Complete() (batch, error) {
+func (m *mockPool) complete() (batch, error) {
 	select {
 	case b := <-m.finishedChan:
 		return b, nil
@@ -71,4 +73,4 @@ func (m *mockPool) Complete() (batch, error) {
 	}
 }
 
-var _ BatchWorkerPool = &mockPool{}
+var _ batchWorkerPool = &mockPool{}

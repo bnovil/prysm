@@ -10,6 +10,9 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// SaveBackfillStatus encodes the given BackfillStatus protobuf struct and writes it to a single key in the db.
+// This value is used by the backfill service to keep track of the range of blocks that need to be synced. It is also used by the
+// code that serves blocks or regenerates states to keep track of what range of blocks are available.
 func (s *Store) SaveBackfillStatus(ctx context.Context, bf *dbval.BackfillStatus) error {
 	ctx, span := trace.StartSpan(ctx, "BeaconDB.SaveBackfillStatus")
 	defer span.End()
@@ -23,6 +26,8 @@ func (s *Store) SaveBackfillStatus(ctx context.Context, bf *dbval.BackfillStatus
 	})
 }
 
+// BackfillStatus retrieves the most recently saved version of the BackfillStatus protobuf struct.
+// This is used to persist information about backfill status across restarts.
 func (s *Store) BackfillStatus(ctx context.Context) (*dbval.BackfillStatus, error) {
 	ctx, span := trace.StartSpan(ctx, "BeaconDB.SaveBackfillStatus")
 	defer span.End()

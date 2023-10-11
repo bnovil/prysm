@@ -17,7 +17,8 @@ type FinalizedCheckpointer interface {
 
 // NewAssigner assists in the correct construction of an Assigner by code in other packages,
 // assuring all the important private member fields are given values.
-// The finalized parameter is used to specify a minimum finalized epoch that the peers must agree on.
+// The FinalizedCheckpointer is used to retrieve the latest finalized checkpoint each time peers are requested.
+// Peers that report an older finalized checkpoint are filtered out.
 func NewAssigner(s *Status, fc FinalizedCheckpointer) *Assigner {
 	return &Assigner{
 		ps: s,
@@ -45,7 +46,7 @@ func (a *Assigner) freshPeers() ([]peer.ID, error) {
 	if len(peers) < required {
 		log.WithFields(logrus.Fields{
 			"suitable": len(peers),
-			"required": required}).Info("Unable to assign peer while suitable peers < required ")
+			"required": required}).Warn("Unable to assign peer while suitable peers < required ")
 		return nil, ErrInsufficientSuitable
 	}
 	return peers, nil
@@ -57,10 +58,10 @@ func (a *Assigner) freshPeers() ([]peer.ID, error) {
 // the number of outbound requests to each peer from a given component.
 func (a *Assigner) Assign(busy map[peer.ID]bool, n int) ([]peer.ID, error) {
 	best, err := a.freshPeers()
-	ps := make([]peer.ID, 0, n)
 	if err != nil {
 		return nil, err
 	}
+	ps := make([]peer.ID, 0, n)
 	for _, p := range best {
 		if !busy[p] {
 			ps = append(ps, p)

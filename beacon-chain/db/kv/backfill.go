@@ -29,7 +29,7 @@ func (s *Store) SaveBackfillStatus(ctx context.Context, bf *dbval.BackfillStatus
 // BackfillStatus retrieves the most recently saved version of the BackfillStatus protobuf struct.
 // This is used to persist information about backfill status across restarts.
 func (s *Store) BackfillStatus(ctx context.Context) (*dbval.BackfillStatus, error) {
-	ctx, span := trace.StartSpan(ctx, "BeaconDB.SaveBackfillStatus")
+	ctx, span := trace.StartSpan(ctx, "BeaconDB.BackfillStatus")
 	defer span.End()
 	bf := &dbval.BackfillStatus{}
 	err := s.db.View(func(tx *bolt.Tx) error {

@@ -11,7 +11,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// ErrChainBroken is usedbatch with no results, skipping importer when a backfill batch can't be imported to the db because it is not known to be the ancestor
+// ErrChainBroken indicates a backfill batch can't be imported to the db because it is not known to be the ancestor
 // of the canonical chain.
 var ErrChainBroken = errors.New("batch is not the ancestor of a known finalized root")
 

@@ -54,7 +54,7 @@ func (s *Store) SaveOrigin(ctx context.Context, serState, serBlock []byte) error
 	}
 
 	if err = s.SaveBackfillStatus(ctx, bf); err != nil {
-		return errors.Wrap(err, "unable to save backfill status data to db for checkpoint sync.")
+		return errors.Wrap(err, "unable to save backfill status data to db for checkpoint sync")
 	}
 
 	log.Infof("saving checkpoint block to db, w/ root=%#x", blockRoot)

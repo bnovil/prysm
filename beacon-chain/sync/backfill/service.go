@@ -179,9 +179,13 @@ func (s *Service) importBatches(ctx context.Context) {
 		imported += 1
 		// Calling update with state=batchImportComplete will advance the batch list.
 	}
+
+	nt := s.batchSeq.numTodo()
 	log.WithField("imported", imported).WithField("importable", len(importable)).
-		WithField("batches_remaining", s.batchSeq.numTodo()).
+		WithField("batches_remaining", nt).
 		Info("Backfill batches processed.")
+
+	backfillRemainingBatches.Set(float64(nt))
 }
 
 func (s *Service) scheduleTodos() {

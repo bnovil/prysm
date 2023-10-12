@@ -10,7 +10,7 @@ message BackfillStatus {
     // low_slot is the slot of the last block that backfill will attempt to download and import.
     // This is determined by MIN_EPOCHS_FOR_BLOCK_REQUESTS, or by a user-specified override.
     uint64 low_slot = 1;
-    // low_slot is the root of the last block that backfill will attempt to download and import.
+    // low_root is the root of the last block that backfill will attempt to download and import.
     bytes low_root = 2;
     // low_parent_root is the parent_root of the block at low_root. This enables the backfill service to check
     // that a block is the direct ancestor of the block for low_root without an additional db lookup.

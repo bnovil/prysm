@@ -25,13 +25,13 @@ type verifier struct {
 	// chkptVals is the set of validators from the state used to initialize the node via checkpoint sync.
 	keys        [][fieldparams.BLSPubkeyLength]byte
 	maxVal      primitives.ValidatorIndex
-	vr          []byte
+	vRoot       []byte
 	fsched      forks.OrderedSchedule
-	dt          [bls.DomainByteLength]byte
+	dType       [bls.DomainByteLength]byte
 	forkDomains map[[4]byte][]byte
 }
 
-func (bs verifier) verify(blks []interfaces.ReadOnlySignedBeaconBlock) (VerifiedROBlocks, error) {
+func (vr verifier) verify(blks []interfaces.ReadOnlySignedBeaconBlock) (VerifiedROBlocks, error) {
 	var err error
 	result := make([]blocks.ROBlock, len(blks))
 	sigSet := bls.NewSet()
@@ -47,7 +47,7 @@ func (bs verifier) verify(blks []interfaces.ReadOnlySignedBeaconBlock) (Verified
 				b.Block().Slot(), b.Block().ParentRoot(),
 				p.Block().Slot(), p.Root())
 		}
-		set, err := bs.blockSignatureBatch(result[i])
+		set, err := vr.blockSignatureBatch(result[i])
 		if err != nil {
 			return nil, err
 		}
@@ -63,28 +63,28 @@ func (bs verifier) verify(blks []interfaces.ReadOnlySignedBeaconBlock) (Verified
 	return result, nil
 }
 
-func (bs verifier) blockSignatureBatch(b blocks.ROBlock) (*bls.SignatureBatch, error) {
+func (vr verifier) blockSignatureBatch(b blocks.ROBlock) (*bls.SignatureBatch, error) {
 	pidx := b.Block().ProposerIndex()
-	if pidx > bs.maxVal {
+	if pidx > vr.maxVal {
 		return nil, errProposerIndexTooHigh
 	}
-	dom, err := bs.domainAtEpoch(slots.ToEpoch(b.Block().Slot()))
+	dom, err := vr.domainAtEpoch(slots.ToEpoch(b.Block().Slot()))
 	if err != nil {
 		return nil, err
 	}
 	sig := b.Signature()
-	pk := bs.keys[pidx][:]
+	pk := vr.keys[pidx][:]
 	root := b.Root()
 	rootF := func() ([32]byte, error) { return root, nil }
 	return signing.BlockSignatureBatch(pk, sig[:], dom, rootF)
 }
 
-func (bs verifier) domainAtEpoch(e primitives.Epoch) ([]byte, error) {
-	fork, err := bs.fsched.VersionForEpoch(e)
+func (vr verifier) domainAtEpoch(e primitives.Epoch) ([]byte, error) {
+	fork, err := vr.fsched.VersionForEpoch(e)
 	if err != nil {
 		return nil, err
 	}
-	d, ok := bs.forkDomains[fork]
+	d, ok := vr.forkDomains[fork]
 	if !ok {
 		return nil, errors.Wrapf(errUnknownDomain, "fork version=%#x, epoch=%d", fork, e)
 	}
@@ -95,15 +95,15 @@ func newBackfillVerifier(st state.BeaconState) (*verifier, error) {
 	fsched := forks.NewOrderedSchedule(params.BeaconConfig())
 	v := &verifier{
 		keys:        st.PublicKeys(),
-		vr:          st.GenesisValidatorsRoot(),
+		vRoot:       st.GenesisValidatorsRoot(),
 		fsched:      fsched,
-		dt:          params.BeaconConfig().DomainBeaconProposer,
+		dType:       params.BeaconConfig().DomainBeaconProposer,
 		forkDomains: make(map[[4]byte][]byte, len(fsched)),
 	}
 	v.maxVal = primitives.ValidatorIndex(len(v.keys) - 1)
 	// Precompute signing domains for known forks at startup.
 	for _, entry := range fsched {
-		d, err := signing.ComputeDomain(v.dt, entry.Version[:], v.vr)
+		d, err := signing.ComputeDomain(v.dType, entry.Version[:], v.vRoot)
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to pre-compute signing domain for fork version=%#x", entry.Version)
 		}

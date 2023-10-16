@@ -149,9 +149,11 @@ func TestServer_getExecutionPayload(t *testing.T) {
 				HeadFetcher:            &chainMock.ChainService{State: tt.st},
 				FinalizationFetcher:    &chainMock.ChainService{},
 				BeaconDB:               beaconDB,
-				ProposerSlotIndexCache: cache.NewProposerPayloadIDsCache(),
+				PayloadIDCache:         cache.NewPayloadIDCache(),
+				TrackedValidatorsCache: cache.NewTrackedValidatorsCache(),
 			}
-			vs.ProposerSlotIndexCache.SetProposerAndPayloadIDs(tt.st.Slot(), 100, [8]byte{100}, [32]byte{'a'})
+			vs.TrackedValidatorsCache.Set(tt.validatorIndx, cache.TrackedValidator{Active: true, Index: tt.validatorIndx})
+			vs.PayloadIDCache.Set(tt.st.Slot(), [32]byte{'a'}, [8]byte{100})
 			blk := util.NewBeaconBlockBellatrix()
 			blk.Block.Slot = tt.st.Slot()
 			blk.Block.ProposerIndex = tt.validatorIndx
@@ -192,9 +194,10 @@ func TestServer_getExecutionPayloadContextTimeout(t *testing.T) {
 		ExecutionEngineCaller:  &powtesting.EngineClient{PayloadIDBytes: &pb.PayloadIDBytes{}, ErrGetPayload: context.DeadlineExceeded, ExecutionPayload: &pb.ExecutionPayload{}},
 		HeadFetcher:            &chainMock.ChainService{State: nonTransitionSt},
 		BeaconDB:               beaconDB,
-		ProposerSlotIndexCache: cache.NewProposerPayloadIDsCache(),
+		PayloadIDCache:         cache.NewPayloadIDCache(),
+		TrackedValidatorsCache: cache.NewTrackedValidatorsCache(),
 	}
-	vs.ProposerSlotIndexCache.SetProposerAndPayloadIDs(nonTransitionSt.Slot(), 100, [8]byte{100}, [32]byte{'a'})
+	vs.PayloadIDCache.Set(nonTransitionSt.Slot(), [32]byte{'a'}, [8]byte{100})
 
 	blk := util.NewBeaconBlockBellatrix()
 	blk.Block.Slot = nonTransitionSt.Slot()
@@ -246,7 +249,8 @@ func TestServer_getExecutionPayload_UnexpectedFeeRecipient(t *testing.T) {
 		HeadFetcher:            &chainMock.ChainService{State: transitionSt},
 		FinalizationFetcher:    &chainMock.ChainService{},
 		BeaconDB:               beaconDB,
-		ProposerSlotIndexCache: cache.NewProposerPayloadIDsCache(),
+		PayloadIDCache:         cache.NewPayloadIDCache(),
+		TrackedValidatorsCache: cache.NewTrackedValidatorsCache(),
 	}
 
 	blk := util.NewBeaconBlockBellatrix()
@@ -264,7 +268,7 @@ func TestServer_getExecutionPayload_UnexpectedFeeRecipient(t *testing.T) {
 
 	evilRecipientAddress := common.BytesToAddress([]byte("evil"))
 	payload.FeeRecipient = evilRecipientAddress[:]
-	vs.ProposerSlotIndexCache = cache.NewProposerPayloadIDsCache()
+	vs.PayloadIDCache = cache.NewPayloadIDCache()
 
 	gotPayload, _, err = vs.getLocalPayload(context.Background(), b.Block(), transitionSt)
 	require.NoError(t, err)

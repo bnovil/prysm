@@ -1835,7 +1835,8 @@ func TestGetProposerDuties(t *testing.T) {
 			TimeFetcher:            chain,
 			OptimisticModeFetcher:  chain,
 			SyncChecker:            &mockSync.Sync{IsSyncing: false},
-			ProposerSlotIndexCache: cache.NewProposerPayloadIDsCache(),
+			PayloadIDCache:         cache.NewPayloadIDCache(),
+			TrackedValidatorsCache: cache.NewTrackedValidatorsCache(),
 		}
 
 		request := httptest.NewRequest(http.MethodGet, "http://www.example.com/eth/v1/validator/duties/proposer/{epoch}", nil)
@@ -1877,7 +1878,8 @@ func TestGetProposerDuties(t *testing.T) {
 			TimeFetcher:            chain,
 			OptimisticModeFetcher:  chain,
 			SyncChecker:            &mockSync.Sync{IsSyncing: false},
-			ProposerSlotIndexCache: cache.NewProposerPayloadIDsCache(),
+			PayloadIDCache:         cache.NewPayloadIDCache(),
+			TrackedValidatorsCache: cache.NewTrackedValidatorsCache(),
 		}
 
 		request := httptest.NewRequest(http.MethodGet, "http://www.example.com/eth/v1/validator/duties/proposer/{epoch}", nil)
@@ -1960,7 +1962,8 @@ func TestGetProposerDuties(t *testing.T) {
 			TimeFetcher:            chain,
 			OptimisticModeFetcher:  chain,
 			SyncChecker:            &mockSync.Sync{IsSyncing: false},
-			ProposerSlotIndexCache: cache.NewProposerPayloadIDsCache(),
+			PayloadIDCache:         cache.NewPayloadIDCache(),
+			TrackedValidatorsCache: cache.NewTrackedValidatorsCache(),
 		}
 
 		currentEpoch := slots.ToEpoch(bs.Slot())
@@ -2003,7 +2006,8 @@ func TestGetProposerDuties(t *testing.T) {
 			TimeFetcher:            chain,
 			OptimisticModeFetcher:  chain,
 			SyncChecker:            &mockSync.Sync{IsSyncing: false},
-			ProposerSlotIndexCache: cache.NewProposerPayloadIDsCache(),
+			PayloadIDCache:         cache.NewPayloadIDCache(),
+			TrackedValidatorsCache: cache.NewTrackedValidatorsCache(),
 		}
 
 		request := httptest.NewRequest(http.MethodGet, "http://www.example.com/eth/v1/validator/duties/proposer/{epoch}", nil)

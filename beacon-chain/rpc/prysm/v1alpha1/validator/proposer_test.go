@@ -604,7 +604,8 @@ func getProposerServer(db db.HeadAccessDatabase, headState state.BeaconState, he
 		TimeFetcher: &testutil.MockGenesisTimeFetcher{
 			Genesis: time.Now(),
 		},
-		ProposerSlotIndexCache: cache.NewProposerPayloadIDsCache(),
+		PayloadIDCache:         cache.NewPayloadIDCache(),
+		TrackedValidatorsCache: cache.NewTrackedValidatorsCache(),
 		BeaconDB:               db,
 		BLSChangesPool:         blstoexec.NewPool(),
 		BlockBuilder:           &builderTest.MockBuilderService{HasConfigured: true},
